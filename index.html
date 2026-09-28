@@ -60,6 +60,34 @@
 
         .btn-action:hover { transform: scale(1.03); box-shadow: 0 0 30px rgba(255, 0, 85, 0.8); }
 
+        .btn-secondary {
+            display: block;
+            width: 100%;
+            margin-top: 12px;
+            padding: 12px;
+            background: rgba(0, 243, 255, 0.05);
+            border: 1px solid var(--neon-blue);
+            border-radius: 6px;
+            color: var(--neon-blue);
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            font-size: 0.85rem;
+            letter-spacing: 1.5px;
+            cursor: pointer;
+            text-transform: uppercase;
+            text-decoration: none;
+            text-align: center;
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(0, 243, 255, 0.2);
+            color: #fff;
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.6);
+            transform: scale(1.02);
+        }
+
         #hud-container {
             position: absolute;
             top: 25px;
@@ -145,6 +173,7 @@
         <h1>Conway Infinite</h1>
         <div id="status" class="status-text">Génération de la base...</div>
         <button id="start-btn" class="btn-action">Lancer l'ascension</button>
+        <a href="https://jojosarcade.vercel.app/" class="btn-secondary">Retour à l'arcade</a>
     </div>
 
     <div id="hud-container">
@@ -157,6 +186,7 @@
         <p style="margin-bottom: 12px; font-size: 1.1rem;">Tu es tombé de plus de 5 blocs !</p>
         <div id="final-score" class="score-gauge" style="font-size: 1.5rem; margin-bottom: 15px;">SCORE: 0 BLOCS</div>
         <button id="restart-btn" class="btn-action" style="display: block;">Recommencer</button>
+        <a href="https://jojosarcade.vercel.app/" class="btn-secondary">Retour à l'arcade</a>
     </div>
 
     <div id="crosshair"></div>
