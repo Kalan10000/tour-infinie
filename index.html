@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conway Infinite Tower 3D</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-blue: #00f3ff;
+            --neon-pink: #ff0055;
+            --neon-gold: #ffcc00;
+            --bg-dark: #0a0b10;
+        }
+
+        * { box-sizing: border-box; user-select: none; margin: 0; padding: 0; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background: var(--bg-dark); font-family: 'Rajdhani', sans-serif; color: #fff; }
+
+        #webgl-container { width: 100vw; height: 100vh; display: block; }
+
+        .glass-panel {
+            background: rgba(15, 20, 35, 0.55);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 243, 255, 0.4);
+            box-shadow: 0 0 35px rgba(0, 0, 0, 0.6), inset 0 0 15px rgba(0, 243, 255, 0.15);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        #ui-overlay {
+            position: absolute;
+            top: 25px;
+            left: 25px;
+            z-index: 10;
+            width: 340px;
+            pointer-events: auto;
+        }
+
+        h1 { font-family: 'Orbitron', sans-serif; font-size: 1.4rem; color: var(--neon-blue); text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 0 12px var(--neon-blue); }
+        .status-text { font-size: 1rem; color: #e2e8f0; margin-top: 8px; font-weight: 700; }
+
+        .btn-action {
+            width: 100%;
+            margin-top: 18px;
+            padding: 14px;
+            background: linear-gradient(135deg, var(--neon-blue), var(--neon-pink));
+            border: none;
+            border-radius: 6px;
+            color: #fff;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            font-size: 0.95rem;
+            letter-spacing: 1.5px;
+            cursor: pointer;
+            display: none;
+            text-transform: uppercase;
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.5);
+            transition: all 0.2s ease;
+        }
+
+        .btn-action:hover { transform: scale(1.03); box-shadow: 0 0 30px rgba(255, 0, 85, 0.8); }
+
+        #hud-container {
+            position: absolute;
+            top: 25px;
+            right: 25px;
+            display: none;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .score-gauge {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.8rem;
+            font-weight: 900;
+            color: #ffffff;
+            text-shadow: 0 0 15px var(--neon-blue), 0 0 30px var(--neon-blue);
+        }
+
+        .record-gauge {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.1rem;
+            color: var(--neon-gold);
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-shadow: 0 0 10px rgba(255, 204, 0, 0.6);
+        }
+
+        #game-over-screen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            z-index: 20;
+            min-width: 320px;
+        }
+
+        #game-over-screen h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.2rem;
+            color: var(--neon-pink);
+            text-shadow: 0 0 20px var(--neon-pink);
+            margin-bottom: 10px;
+        }
+
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 10px;
+            height: 10px;
+            border: 2px solid var(--neon-blue);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            display: none;
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        #instructions {
+            position: absolute;
+            bottom: 25px;
+            left: 25px;
+            font-size: 0.85rem;
+            color: #ffffff;
+            display: none;
+        }
+    </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <div id="webgl-container"></div>
+
+    <div id="ui-overlay" class="glass-panel">
+        <h1>Conway Infinite</h1>
+        <div id="status" class="status-text">Génération de la base...</div>
+        <button id="start-btn" class="btn-action">Lancer l'ascension</button>
+    </div>
+
+    <div id="hud-container">
+        <div id="score-val" class="score-gauge">0 BLOCS</div>
+        <div id="high-score-val" class="record-gauge">RECORD: 0 BLOCS</div>
+    </div>
+
+    <div id="game-over-screen" class="glass-panel">
+        <h2>GAME OVER</h2>
+        <p style="margin-bottom: 12px; font-size: 1.1rem;">Tu es tombé de plus de 5 blocs !</p>
+        <div id="final-score" class="score-gauge" style="font-size: 1.5rem; margin-bottom: 15px;">SCORE: 0 BLOCS</div>
+        <button id="restart-btn" class="btn-action" style="display: block;">Recommencer</button>
+    </div>
+
+    <div id="crosshair"></div>
+    <div id="instructions" class="glass-panel">
+        [ZQSD / FLÈCHES] Déplacement | [Z / FLÈCHE HAUT / ESPACE] Grimper | [SOURIS] Orienter la caméra
+    </div>
+
+    <script>
+        class CyberAudio {
+            constructor() { this.ctx = null; }
+            init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+            playTone(freq, type, duration, vol = 0.1) {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            }
+            jump() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(160, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(480, this.ctx.currentTime + 0.18);
+                gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.18);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.18);
+            }
+            select() { this.playTone(880, 'sine', 0.12, 0.15); }
+            death() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.5);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.5);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.5);
+            }
+        }
+        const audio = new CyberAudio();
+
+        function createCellTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillStyle = '#0f1428';
+            ctx.fillRect(0, 0, 256, 256);
+            
+            ctx.strokeStyle = '#00f3ff';
+            ctx.lineWidth = 10;
+            ctx.strokeRect(8, 8, 240, 240);
+            
+            ctx.strokeStyle = 'rgba(255, 0, 85, 0.5)';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(24, 24, 208, 208);
+            
+            ctx.fillStyle = '#00f3ff';
+            ctx.fillRect(112, 112, 32, 32);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const size = 28;
+        const maxCells = 150000;
+        let grid = Array.from({ length: size }, () => Array.from({ length: size }, () => Math.random() > 0.8 ? 1 : 0));
+        let highestGeneratedY = 0;
+        let phase = 'simulating'; 
+        let selectedInstanceId = -1;
+        let baseLayerIds = [];
+
+        const cellsByLayer = {};
+        const cellPositions = [];
+        let cellCount = 0;
+
+        let score = 0;
+        let maxReachedHeight = 0;
+        let highScore = 0;
+
+        const container = document.getElementById('webgl-container');
+        const scene = new THREE.Scene();
+        
+        scene.background = new THREE.Color(0x0a0b10);
+        scene.fog = new THREE.FogExp2(0x0a0b10, 0.012);
+
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        // Effet de poussière stellaire / particules cyber
+        const particleGeo = new THREE.BufferGeometry();
+        const particleCount = 1500;
+        const posArray = new Float32Array(particleCount * 3);
+        for(let i=0; i<particleCount*3; i+=3) {
+            posArray[i] = (Math.random() - 0.5) * 100;
+            posArray[i+1] = Math.random() * 300;
+            posArray[i+2] = (Math.random() - 0.5) * 100;
+        }
+        particleGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const particleMat = new THREE.PointsMaterial({
+            size: 0.25,
+            color: 0x00f3ff,
+            transparent: true,
+            opacity: 0.7,
+            blending: THREE.AdditiveBlending
+        });
+        const particles = new THREE.Points(particleGeo, particleMat);
+        scene.add(particles);
+
+        const gridFloor = new THREE.GridHelper(120, 60, 0x00f3ff, 0x1a264a);
+        gridFloor.position.y = -0.5;
+        scene.add(gridFloor);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 1.4));
+
+        const light1 = new THREE.DirectionalLight(0x00f3ff, 1.8);
+        light1.position.set(30, 50, 30);
+        scene.add(light1);
+
+        const light2 = new THREE.DirectionalLight(0xff0055, 1.5);
+        light2.position.set(-30, 30, -30);
+        scene.add(light2);
+
+        const cellTexture = createCellTexture();
+        const geometry = new THREE.BoxGeometry(0.96, 0.96, 0.96);
+        const material = new THREE.MeshStandardMaterial({
+            map: cellTexture,
+            roughness: 0.15,
+            metalness: 0.6,
+            emissiveMap: cellTexture,
+            emissiveIntensity: 0.8
+        });
+
+        const instancedMesh = new THREE.InstancedMesh(geometry, material, maxCells);
+        const colorArray = new Float32Array(maxCells * 3);
+        instancedMesh.instanceColor = new THREE.InstancedBufferAttribute(colorArray, 3);
+        instancedMesh.count = 0;
+        scene.add(instancedMesh);
+
+        // Personnage stylisé
+        const playerGroup = new THREE.Group();
+        const playerMesh = new THREE.Mesh(
+            new THREE.IcosahedronGeometry(0.45, 1),
+            new THREE.MeshStandardMaterial({ color: 0x00f3ff, emissive: 0x00f3ff, emissiveIntensity: 1.0, roughness: 0.1, metalness: 0.9 })
+        );
+        const playerRing = new THREE.Mesh(
+            new THREE.TorusGeometry(0.65, 0.04, 16, 32),
+            new THREE.MeshBasicMaterial({ color: 0xff0055 })
+        );
+        playerRing.rotation.x = Math.PI / 2;
+        playerGroup.add(playerMesh);
+        playerGroup.add(playerRing);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        let pitch = 0, yaw = 0;
+        let yVelocity = 0;
+        let isGrounded = false;
+        const gravity = -0.013;
+        const keys = {};
+
+        const raycaster = new THREE.Raycaster();
+        let simInterval = null;
+
+        const colorTmp = new THREE.Color();
+        function getAltitudeColor(y) {
+            return colorTmp.setHSL((y * 0.015) % 1.0, 0.95, 0.55);
+        }
+
+        function generateLayer(yLevel) {
+            for (let i = 0; i < size; i++) {
+                for (let j = 0; j < size; j++) {
+                    if (grid[i][j] === 1) {
+                        const x = i - size / 2;
+                        const z = j - size / 2;
+                        if (cellCount < maxCells) {
+                            const matrix = new THREE.Matrix4().setPosition(x, yLevel, z);
+                            instancedMesh.setMatrixAt(cellCount, matrix);
+                            instancedMesh.setColorAt(cellCount, getAltitudeColor(yLevel));
+
+                            if (!cellsByLayer[yLevel]) cellsByLayer[yLevel] = [];
+                            cellsByLayer[yLevel].push({ x, y: yLevel, z, id: cellCount });
+                            cellPositions.push({ x, y: yLevel, z });
+                            cellCount++;
+                        }
+                    }
+                }
+            }
+
+            instancedMesh.count = cellCount;
+            instancedMesh.instanceMatrix.needsUpdate = true;
+            instancedMesh.instanceColor.needsUpdate = true;
+
+            // Calcul du niveau suivant (Jeu de la vie)
+            let next = Array.from({ length: size }, () => Array(size).fill(0));
+            for (let i = 0; i < size; i++) {
+                for (let j = 0; j < size; j++) {
+                    let sum = 0;
+                    for (let x = -1; x <= 1; x++) {
+                        for (let y = -1; y <= 1; y++) {
+                            if (x === 0 && y === 0) continue;
+                            sum += grid[(i + x + size) % size][(j + y + size) % size];
+                        }
+                    }
+                    if (grid[i][j] === 1) next[i][j] = (sum === 2 || sum === 3) ? 1 : 0;
+                    else next[i][j] = (sum === 3) ? 1 : 0;
+                }
+            }
+            grid = next;
+            highestGeneratedY = yLevel;
+        }
+
+        function initInitialTower() {
+            for (let y = 0; y < 40; y++) {
+                generateLayer(y);
+            }
+            phase = 'selection';
+            document.getElementById('status').innerText = "Choisi une plateforme de départ (jaune) :";
+            
+            for (let y = 0; y <= 5; y++) {
+                if (cellsByLayer[y]) {
+                    cellsByLayer[y].forEach(c => baseLayerIds.push(c.id));
+                }
+            }
+            
+            camera.position.set(0, 8, 22);
+            controls.target.set(0, 2, 0);
+            controls.update();
+        }
+
+        setTimeout(initInitialTower, 300);
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        document.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if (e.code === 'Space' && phase === 'climbing' && isGrounded) {
+                yVelocity = 0.23;
+                isGrounded = false;
+                audio.jump();
+            }
+        });
+        document.addEventListener('keyup', (e) => keys[e.code] = false);
+
+        document.addEventListener('mousemove', (e) => {
+            if (document.pointerLockElement === renderer.domElement && phase === 'climbing') {
+                yaw -= e.movementX * 0.003;
+                pitch += e.movementY * 0.003; 
+                pitch = Math.max(-Math.PI / 4, Math.min(Math.PI / 3, pitch));
+            }
+        });
+
+        window.addEventListener('click', (e) => {
+            audio.init();
+            if (phase === 'selection') {
+                raycaster.setFromCamera(new THREE.Vector2((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1), camera);
+                const intersects = raycaster.intersectObject(instancedMesh);
+                if (intersects.length > 0) {
+                    const id = intersects[0].instanceId;
+                    const pos = cellPositions[id];
+                    if (pos && pos.y <= 5) {
+                        selectedInstanceId = id;
+                        audio.select();
+                        document.getElementById('start-btn').style.display = 'block';
+                    }
+                }
+            } else if (phase === 'climbing' && document.pointerLockElement !== renderer.domElement) {
+                renderer.domElement.requestPointerLock();
+            }
+        });
+
+        function startGame() {
+            phase = 'climbing';
+            document.getElementById('ui-overlay').style.display = 'none';
+            document.getElementById('game-over-screen').style.display = 'none';
+            document.getElementById('hud-container').style.display = 'flex';
+            document.getElementById('crosshair').style.display = 'block';
+            document.getElementById('instructions').style.display = 'block';
+
+            controls.enabled = false;
+            scene.add(playerGroup);
+
+            const pos = cellPositions[selectedInstanceId] || { x: 0, y: 1, z: 0 };
+            playerGroup.position.set(pos.x, pos.y + 1.2, pos.z);
+            maxReachedHeight = Math.floor(playerGroup.position.y);
+            score = maxReachedHeight;
+
+            renderer.domElement.requestPointerLock();
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            // Reset position
+            const pos = cellPositions[selectedInstanceId] || { x: 0, y: 1, z: 0 };
+            playerGroup.position.set(pos.x, pos.y + 1.2, pos.z);
+            yVelocity = 0;
+            maxReachedHeight = Math.floor(playerGroup.position.y);
+            score = maxReachedHeight;
+            startGame();
+        });
+
+        function checkCollision(pos) {
+            const radius = 0.38;
+            const yPos = Math.floor(pos.y);
+
+            for (let y = yPos - 1; y <= yPos + 1; y++) {
+                const layer = cellsByLayer[y];
+                if (layer) {
+                    for (let cell of layer) {
+                        const dx = Math.max(cell.x - 0.5, Math.min(pos.x, cell.x + 0.5));
+                        const dy = Math.max(cell.y - 0.5, Math.min(pos.y, cell.y + 0.5));
+                        const dz = Math.max(cell.z - 0.5, Math.min(pos.z, cell.z + 0.5));
+
+                        const dist = (pos.x - dx)**2 + (pos.y - dy)**2 + (pos.z - dz)**2;
+                        if (dist < radius * radius) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function triggerGameOver() {
+            phase = 'gameover';
+            audio.death();
+            document.exitPointerLock();
+            document.getElementById('hud-container').style.display = 'none';
+            document.getElementById('crosshair').style.display = 'none';
+            document.getElementById('instructions').style.display = 'none';
+            document.getElementById('final-score').innerText = `SCORE: ${score} BLOCS`;
+            document.getElementById('game-over-screen').style.display = 'flex';
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (phase === 'selection') {
+                const pulse = (Math.sin(Date.now() * 0.008) + 1) / 2;
+                const baseColor = new THREE.Color().setHSL(0.14, 1.0, 0.45 + pulse * 0.25);
+                const selectColor = new THREE.Color(0x00f3ff);
+
+                baseLayerIds.forEach(id => {
+                    instancedMesh.setColorAt(id, (id === selectedInstanceId) ? selectColor : baseColor);
+                });
+                instancedMesh.instanceColor.needsUpdate = true;
+                controls.update();
+
+            } else if (phase === 'climbing') {
+                const currentY = Math.floor(playerGroup.position.y);
+
+                // Mise à jour du score (Hauteur maximale atteinte en blocs)
+                if (currentY > maxReachedHeight) {
+                    maxReachedHeight = currentY;
+                }
+                score = maxReachedHeight;
+
+                if (score > highScore) {
+                    highScore = score;
+                }
+
+                document.getElementById('score-val').innerText = `${score} BLOCS`;
+                document.getElementById('high-score-val').innerText = `RECORD: ${highScore} BLOCS`;
+
+                // condition de mort : chute de 5 blocs ou plus par rapport à la hauteur max atteinte
+                if (playerGroup.position.y < maxReachedHeight - 5) {
+                    triggerGameOver();
+                    return;
+                }
+
+                // Génération infinie au fur et à mesure de la montée
+                if (playerGroup.position.y + 25 > highestGeneratedY) {
+                    generateLayer(highestGeneratedY + 1);
+                }
+
+                const speed = 0.088;
+                const moveVec = new THREE.Vector3();
+
+                if (keys['KeyW'] || keys['ArrowUp']) moveVec.z -= 1;
+                if (keys['KeyS'] || keys['ArrowDown']) moveVec.z += 1;
+                if (keys['KeyA'] || keys['ArrowLeft']) moveVec.x -= 1;
+                if (keys['KeyD'] || keys['ArrowRight']) moveVec.x += 1;
+
+                moveVec.normalize();
+                moveVec.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+
+                let nextPos = playerGroup.position.clone();
+                nextPos.x += moveVec.x * speed;
+                if (!checkCollision(nextPos)) playerGroup.position.x = nextPos.x;
+
+                nextPos = playerGroup.position.clone();
+                nextPos.z += moveVec.z * speed;
+                if (!checkCollision(nextPos)) playerGroup.position.z = nextPos.z;
+
+                // escalade et glissade contre le mur
+                const facingVec = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+                const isFacingWall = checkCollision(playerGroup.position.clone().add(facingVec.clone().multiplyScalar(0.28)));
+                const isPushingWall = moveVec.lengthSq() > 0 && checkCollision(playerGroup.position.clone().add(moveVec.clone().multiplyScalar(0.28)));
+                const isAgainstWall = isFacingWall || isPushingWall;
+
+                const isClimbingKeyHeld = keys['KeyW'] || keys['ArrowUp'] || keys['Space'];
+
+                if (isAgainstWall && isClimbingKeyHeld) {
+                    yVelocity = 0.058; // Escalade
+                } else if (isAgainstWall && !isGrounded) {
+                    yVelocity = -0.012; // Glissade lente
+                } else {
+                    yVelocity += gravity; // Gravité
+                }
+
+                nextPos = playerGroup.position.clone();
+                nextPos.y += yVelocity;
+
+                if (!checkCollision(nextPos)) {
+                    playerGroup.position.y = nextPos.y;
+                    isGrounded = false;
+                } else {
+                    if (yVelocity < 0) isGrounded = true;
+                    yVelocity = 0;
+                }
+
+                // Animation du joueur
+                playerMesh.rotation.x += 0.03;
+                playerMesh.rotation.y += 0.04;
+                playerRing.rotation.z += 0.02;
+
+                // Caméra TPS
+                const camDist = 3.8;
+                camera.position.x = playerGroup.position.x + camDist * Math.sin(yaw) * Math.cos(pitch);
+                camera.position.y = playerGroup.position.y + 0.8 + camDist * Math.sin(pitch);
+                camera.position.z = playerGroup.position.z + camDist * Math.cos(yaw) * Math.cos(pitch);
+
+                camera.lookAt(playerGroup.position.clone().add(new THREE.Vector3(0, 0.4, 0)));
+
+            } else if (phase === 'gameover') {
+                camera.position.x = playerGroup.position.x + 4 * Math.sin(Date.now() * 0.001);
+                camera.position.z = playerGroup.position.z + 4 * Math.cos(Date.now() * 0.001);
+                camera.lookAt(playerGroup.position);
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
