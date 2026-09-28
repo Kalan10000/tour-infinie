@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Conway Infinite Tower 3D</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
     <style>
@@ -13,13 +13,13 @@
             --bg-dark: #0a0b10;
         }
 
-        * { box-sizing: border-box; user-select: none; margin: 0; padding: 0; }
+        * { box-sizing: border-box; user-select: none; margin: 0; padding: 0; touch-action: none; }
         body, html { width: 100%; height: 100%; overflow: hidden; background: var(--bg-dark); font-family: 'Rajdhani', sans-serif; color: #fff; }
 
         #webgl-container { width: 100vw; height: 100vh; display: block; }
 
         .glass-panel {
-            background: rgba(15, 20, 35, 0.55);
+            background: rgba(15, 20, 35, 0.65);
             backdrop-filter: blur(20px);
             border: 1px solid rgba(0, 243, 255, 0.4);
             box-shadow: 0 0 35px rgba(0, 0, 0, 0.6), inset 0 0 15px rgba(0, 243, 255, 0.15);
@@ -56,6 +56,7 @@
             text-transform: uppercase;
             box-shadow: 0 0 20px rgba(0, 243, 255, 0.5);
             transition: all 0.2s ease;
+            pointer-events: auto;
         }
 
         .btn-action:hover { transform: scale(1.03); box-shadow: 0 0 30px rgba(255, 0, 85, 0.8); }
@@ -79,6 +80,7 @@
             text-align: center;
             box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
             transition: all 0.2s ease;
+            pointer-events: auto;
         }
 
         .btn-secondary:hover {
@@ -128,6 +130,7 @@
             text-align: center;
             z-index: 20;
             min-width: 320px;
+            pointer-events: auto;
         }
 
         #game-over-screen h2 {
@@ -159,6 +162,53 @@
             font-size: 0.85rem;
             color: #ffffff;
             display: none;
+            pointer-events: none;
+        }
+
+        /* Contrôles tactiles mobiles */
+        #mobile-controls {
+            position: absolute;
+            bottom: 25px;
+            right: 25px;
+            display: none;
+            gap: 12px;
+            z-index: 15;
+            pointer-events: auto;
+        }
+
+        .mob-btn {
+            width: 60px;
+            height: 60px;
+            background: rgba(0, 243, 255, 0.15);
+            border: 2px solid var(--neon-blue);
+            border-radius: 50%;
+            color: var(--neon-blue);
+            font-family: 'Orbitron', sans-serif;
+            font-weight: bold;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
+            cursor: pointer;
+        }
+        .mob-btn:active { background: rgba(0, 243, 255, 0.4); color: #fff; }
+
+        .sound-toggle {
+            position: absolute;
+            top: 25px;
+            right: 25px;
+            background: rgba(15, 20, 35, 0.65);
+            border: 1px solid var(--neon-blue);
+            color: var(--neon-blue);
+            padding: 10px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            z-index: 25;
+            box-shadow: 0 0 10px rgba(0,243,255,0.2);
+            pointer-events: auto;
         }
     </style>
 
@@ -167,6 +217,7 @@
 </head>
 <body>
 
+    <button id="sound-btn" class="sound-toggle">SON: ON</button>
     <div id="webgl-container"></div>
 
     <div id="ui-overlay" class="glass-panel">
@@ -191,15 +242,28 @@
 
     <div id="crosshair"></div>
     <div id="instructions" class="glass-panel">
-        [ZQSD / FLÈCHES] Déplacement | [Z / FLÈCHE HAUT / ESPACE] Grimper | [SOURIS] Orienter la caméra
+        [ZQSD / FLÈCHES] Déplacement | [ESPACE / HAUT] Grimper | [SOURIS/GLISSER] Caméra
+    </div>
+
+    <div id="mobile-controls">
+        <button id="mob-jump" class="mob-btn">SAUT</button>
     </div>
 
     <script>
         class CyberAudio {
-            constructor() { this.ctx = null; }
-            init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+            constructor() { 
+                this.ctx = null; 
+                this.enabled = true;
+            }
+            init() { 
+                if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); 
+            }
+            toggle() {
+                this.enabled = !this.enabled;
+                return this.enabled;
+            }
             playTone(freq, type, duration, vol = 0.1) {
-                if (!this.ctx) return;
+                if (!this.ctx || !this.enabled) return;
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 osc.type = type;
@@ -212,7 +276,7 @@
                 osc.stop(this.ctx.currentTime + duration);
             }
             jump() {
-                if (!this.ctx) return;
+                if (!this.ctx || !this.enabled) return;
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 osc.type = 'sawtooth';
@@ -227,7 +291,7 @@
             }
             select() { this.playTone(880, 'sine', 0.12, 0.15); }
             death() {
-                if (!this.ctx) return;
+                if (!this.ctx || !this.enabled) return;
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 osc.type = 'sawtooth';
@@ -242,6 +306,12 @@
             }
         }
         const audio = new CyberAudio();
+
+        document.getElementById('sound-btn').addEventListener('click', () => {
+            audio.init();
+            const state = audio.toggle();
+            document.getElementById('sound-btn').innerText = state ? "SON: ON" : "SON: OFF";
+        });
 
         function createCellTexture() {
             const canvas = document.createElement('canvas');
@@ -279,7 +349,7 @@
 
         let score = 0;
         let maxReachedHeight = 0;
-        let highScore = 0;
+        let highScore = parseInt(localStorage.getItem('conway_high_score')) || 0;
 
         const container = document.getElementById('webgl-container');
         const scene = new THREE.Scene();
@@ -293,7 +363,6 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         container.appendChild(renderer.domElement);
 
-        // Effet de poussière stellaire / particules cyber
         const particleGeo = new THREE.BufferGeometry();
         const particleCount = 1500;
         const posArray = new Float32Array(particleCount * 3);
@@ -343,7 +412,6 @@
         instancedMesh.count = 0;
         scene.add(instancedMesh);
 
-        // Personnage stylisé
         const playerGroup = new THREE.Group();
         const playerMesh = new THREE.Mesh(
             new THREE.IcosahedronGeometry(0.45, 1),
@@ -368,7 +436,6 @@
         const keys = {};
 
         const raycaster = new THREE.Raycaster();
-        let simInterval = null;
 
         const colorTmp = new THREE.Color();
         function getAltitudeColor(y) {
@@ -399,7 +466,6 @@
             instancedMesh.instanceMatrix.needsUpdate = true;
             instancedMesh.instanceColor.needsUpdate = true;
 
-            // Calcul du niveau suivant (Jeu de la vie)
             let next = Array.from({ length: size }, () => Array(size).fill(0));
             for (let i = 0; i < size; i++) {
                 for (let j = 0; j < size; j++) {
@@ -423,7 +489,7 @@
                 generateLayer(y);
             }
             phase = 'selection';
-            document.getElementById('status').innerText = "Choisi une plateforme de départ (jaune) :";
+            document.getElementById('status').innerText = "Choisis une plateforme de départ (jaune) :";
             
             for (let y = 0; y <= 5; y++) {
                 if (cellsByLayer[y]) {
@@ -446,7 +512,7 @@
 
         document.addEventListener('keydown', (e) => {
             keys[e.code] = true;
-            if (e.code === 'Space' && phase === 'climbing' && isGrounded) {
+            if ((e.code === 'Space' || e.code === 'ArrowUp') && phase === 'climbing' && isGrounded) {
                 yVelocity = 0.23;
                 isGrounded = false;
                 audio.jump();
@@ -454,13 +520,57 @@
         });
         document.addEventListener('keyup', (e) => keys[e.code] = false);
 
-        document.addEventListener('mousemove', (e) => {
-            if (document.pointerLockElement === renderer.domElement && phase === 'climbing') {
-                yaw -= e.movementX * 0.003;
-                pitch += e.movementY * 0.003; 
+        // Gestion souris et tactile pour la caméra
+        let isDraggingCam = false;
+        let prevMouseX = 0, prevMouseY = 0;
+
+        window.addEventListener('mousedown', (e) => {
+            if (phase === 'climbing') {
+                isDraggingCam = true;
+                prevMouseX = e.clientX;
+                prevMouseY = e.clientY;
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (phase === 'climbing' && (isDraggingCam || document.pointerLockElement === renderer.domElement)) {
+                const movementX = e.movementX || (e.clientX - prevMouseX);
+                const movementY = e.movementY || (e.clientY - prevMouseY);
+                prevMouseX = e.clientX;
+                prevMouseY = e.clientY;
+
+                yaw -= movementX * 0.003;
+                pitch += movementY * 0.003; 
                 pitch = Math.max(-Math.PI / 4, Math.min(Math.PI / 3, pitch));
             }
         });
+
+        window.addEventListener('mouseup', () => { isDraggingCam = false; });
+
+        // Touch handlers pour mobile
+        window.addEventListener('touchstart', (e) => {
+            audio.init();
+            if (e.touches.length === 1 && phase === 'climbing') {
+                isDraggingCam = true;
+                prevMouseX = e.touches[0].clientX;
+                prevMouseY = e.touches[0].clientY;
+            }
+        }, {passive: true});
+
+        window.addEventListener('touchmove', (e) => {
+            if (phase === 'climbing' && isDraggingCam && e.touches.length === 1) {
+                const movementX = e.touches[0].clientX - prevMouseX;
+                const movementY = e.touches[0].clientY - prevMouseY;
+                prevMouseX = e.touches[0].clientX;
+                prevMouseY = e.touches[0].clientY;
+
+                yaw -= movementX * 0.005;
+                pitch += movementY * 0.005;
+                pitch = Math.max(-Math.PI / 4, Math.min(Math.PI / 3, pitch));
+            }
+        }, {passive: true});
+
+        window.addEventListener('touchend', () => { isDraggingCam = false; });
 
         window.addEventListener('click', (e) => {
             audio.init();
@@ -476,8 +586,6 @@
                         document.getElementById('start-btn').style.display = 'block';
                     }
                 }
-            } else if (phase === 'climbing' && document.pointerLockElement !== renderer.domElement) {
-                renderer.domElement.requestPointerLock();
             }
         });
 
@@ -488,6 +596,7 @@
             document.getElementById('hud-container').style.display = 'flex';
             document.getElementById('crosshair').style.display = 'block';
             document.getElementById('instructions').style.display = 'block';
+            document.getElementById('mobile-controls').style.display = 'flex';
 
             controls.enabled = false;
             scene.add(playerGroup);
@@ -496,19 +605,24 @@
             playerGroup.position.set(pos.x, pos.y + 1.2, pos.z);
             maxReachedHeight = Math.floor(playerGroup.position.y);
             score = maxReachedHeight;
-
-            renderer.domElement.requestPointerLock();
         }
 
         document.getElementById('start-btn').addEventListener('click', startGame);
         document.getElementById('restart-btn').addEventListener('click', () => {
-            // Reset position
             const pos = cellPositions[selectedInstanceId] || { x: 0, y: 1, z: 0 };
             playerGroup.position.set(pos.x, pos.y + 1.2, pos.z);
             yVelocity = 0;
             maxReachedHeight = Math.floor(playerGroup.position.y);
             score = maxReachedHeight;
             startGame();
+        });
+
+        document.getElementById('mob-jump').addEventListener('click', () => {
+            if (phase === 'climbing' && isGrounded) {
+                yVelocity = 0.23;
+                isGrounded = false;
+                audio.jump();
+            }
         });
 
         function checkCollision(pos) {
@@ -534,10 +648,10 @@
         function triggerGameOver() {
             phase = 'gameover';
             audio.death();
-            document.exitPointerLock();
             document.getElementById('hud-container').style.display = 'none';
             document.getElementById('crosshair').style.display = 'none';
             document.getElementById('instructions').style.display = 'none';
+            document.getElementById('mobile-controls').style.display = 'none';
             document.getElementById('final-score').innerText = `SCORE: ${score} BLOCS`;
             document.getElementById('game-over-screen').style.display = 'flex';
         }
@@ -559,7 +673,6 @@
             } else if (phase === 'climbing') {
                 const currentY = Math.floor(playerGroup.position.y);
 
-                // Mise à jour du score (Hauteur maximale atteinte en blocs)
                 if (currentY > maxReachedHeight) {
                     maxReachedHeight = currentY;
                 }
@@ -567,18 +680,17 @@
 
                 if (score > highScore) {
                     highScore = score;
+                    localStorage.setItem('conway_high_score', highScore);
                 }
 
                 document.getElementById('score-val').innerText = `${score} BLOCS`;
                 document.getElementById('high-score-val').innerText = `RECORD: ${highScore} BLOCS`;
 
-                // condition de mort : chute de 5 blocs ou plus par rapport à la hauteur max atteinte
                 if (playerGroup.position.y < maxReachedHeight - 5) {
                     triggerGameOver();
                     return;
                 }
 
-                // Génération infinie au fur et à mesure de la montée
                 if (playerGroup.position.y + 25 > highestGeneratedY) {
                     generateLayer(highestGeneratedY + 1);
                 }
@@ -602,7 +714,6 @@
                 nextPos.z += moveVec.z * speed;
                 if (!checkCollision(nextPos)) playerGroup.position.z = nextPos.z;
 
-                // escalade et glissade contre le mur
                 const facingVec = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
                 const isFacingWall = checkCollision(playerGroup.position.clone().add(facingVec.clone().multiplyScalar(0.28)));
                 const isPushingWall = moveVec.lengthSq() > 0 && checkCollision(playerGroup.position.clone().add(moveVec.clone().multiplyScalar(0.28)));
@@ -611,11 +722,11 @@
                 const isClimbingKeyHeld = keys['KeyW'] || keys['ArrowUp'] || keys['Space'];
 
                 if (isAgainstWall && isClimbingKeyHeld) {
-                    yVelocity = 0.058; // Escalade
+                    yVelocity = 0.058; 
                 } else if (isAgainstWall && !isGrounded) {
-                    yVelocity = -0.012; // Glissade lente
+                    yVelocity = -0.012; 
                 } else {
-                    yVelocity += gravity; // Gravité
+                    yVelocity += gravity; 
                 }
 
                 nextPos = playerGroup.position.clone();
@@ -629,12 +740,10 @@
                     yVelocity = 0;
                 }
 
-                // Animation du joueur
                 playerMesh.rotation.x += 0.03;
                 playerMesh.rotation.y += 0.04;
                 playerRing.rotation.z += 0.02;
 
-                // Caméra TPS
                 const camDist = 3.8;
                 camera.position.x = playerGroup.position.x + camDist * Math.sin(yaw) * Math.cos(pitch);
                 camera.position.y = playerGroup.position.y + 0.8 + camDist * Math.sin(pitch);
