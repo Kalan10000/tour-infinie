@@ -242,7 +242,7 @@
 
     <div id="crosshair"></div>
     <div id="instructions" class="glass-panel">
-        [ZQSD / FLÈCHES] Déplacement | [ESPACE / HAUT] Grimper | [SOURIS/GLISSER] Caméra
+        [ZQSD / FLÈCHES] Déplacement | [ESPACE / HAUT] Grimper | [SOURIS] Orienté Caméra (Clic pour Capturer)
     </div>
 
     <div id="mobile-controls">
@@ -520,32 +520,31 @@
         });
         document.addEventListener('keyup', (e) => keys[e.code] = false);
 
-        // Gestion souris et tactile pour la caméra
+        // Capture du pointeur / suivi de la souris pour la caméra sans clic maintenu
+        renderer.domElement.addEventListener('click', () => {
+            if (phase === 'climbing' && document.pointerLockElement !== renderer.domElement) {
+                renderer.domElement.requestPointerLock();
+            }
+        });
+
         let isDraggingCam = false;
         let prevMouseX = 0, prevMouseY = 0;
 
-        window.addEventListener('mousedown', (e) => {
-            if (phase === 'climbing') {
-                isDraggingCam = true;
-                prevMouseX = e.clientX;
-                prevMouseY = e.clientY;
-            }
-        });
-
         window.addEventListener('mousemove', (e) => {
-            if (phase === 'climbing' && (isDraggingCam || document.pointerLockElement === renderer.domElement)) {
-                const movementX = e.movementX || (e.clientX - prevMouseX);
-                const movementY = e.movementY || (e.clientY - prevMouseY);
+            if (phase === 'climbing') {
+                const isLocked = document.pointerLockElement === renderer.domElement;
+                if (isLocked || isDraggingCam) {
+                    const movementX = e.movementX !== undefined ? e.movementX : (e.clientX - prevMouseX);
+                    const movementY = e.movementY !== undefined ? e.movementY : (e.clientY - prevMouseY);
+
+                    yaw -= movementX * 0.003;
+                    pitch += movementY * 0.003; 
+                    pitch = Math.max(-Math.PI / 4, Math.min(Math.PI / 3, pitch));
+                }
                 prevMouseX = e.clientX;
                 prevMouseY = e.clientY;
-
-                yaw -= movementX * 0.003;
-                pitch += movementY * 0.003; 
-                pitch = Math.max(-Math.PI / 4, Math.min(Math.PI / 3, pitch));
             }
         });
-
-        window.addEventListener('mouseup', () => { isDraggingCam = false; });
 
         // Touch handlers pour mobile
         window.addEventListener('touchstart', (e) => {
@@ -605,6 +604,10 @@
             playerGroup.position.set(pos.x, pos.y + 1.2, pos.z);
             maxReachedHeight = Math.floor(playerGroup.position.y);
             score = maxReachedHeight;
+
+            try {
+                renderer.domElement.requestPointerLock();
+            } catch(e) {}
         }
 
         document.getElementById('start-btn').addEventListener('click', startGame);
@@ -648,6 +651,9 @@
         function triggerGameOver() {
             phase = 'gameover';
             audio.death();
+            if (document.pointerLockElement) {
+                document.exitPointerLock();
+            }
             document.getElementById('hud-container').style.display = 'none';
             document.getElementById('crosshair').style.display = 'none';
             document.getElementById('instructions').style.display = 'none';
